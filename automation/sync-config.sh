@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Copies 4 Cloudflare Worker config values (ANTHROPIC_API_KEY, OPENAI_API_KEY,
-# CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID) from a local env file into a
-# repo's GitHub Actions config, via the GitHub CLI.
+# Copies 5 config values (ANTHROPIC_API_KEY, OPENAI_API_KEY,
+# CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, ORACLE_API_TOKEN) from a
+# local env file into a repo's GitHub Actions config, via the GitHub CLI.
 #
 # Lives here in CloudRoot/automation/, not inside any one repo's worker/
 # folder: without moving it, CloudRoot/automation is usable by agents working
@@ -76,7 +76,7 @@ else
   read -rp "GitHub account of your CloudRoot fork: " fork_account
   REPO="$fork_account/CloudRoot"
 fi
-KEYS=(ANTHROPIC_API_KEY OPENAI_API_KEY CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID)
+KEYS=(ANTHROPIC_API_KEY OPENAI_API_KEY CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID ORACLE_API_TOKEN)
 
 if [[ ! -f "$ENV_FILE" ]]; then
   if [[ "$ENV_FILE" == "$FALLBACK_ENV_FILE" ]]; then

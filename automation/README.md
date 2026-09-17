@@ -4,9 +4,9 @@
 
 ## `sync-config.sh`
 
-Copies 4 Cloudflare Worker config values (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
-`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) from a local env file into a
-repo's GitHub Actions config, via the GitHub CLI.
+Copies 5 config values (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `ORACLE_API_TOKEN`) from a
+local env file into a repo's GitHub Actions config, via the GitHub CLI.
 
 The env file path is remembered for you: pass it once as the first
 argument, and the script writes it to `paths.yaml` (generated here,
