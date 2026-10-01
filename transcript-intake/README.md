@@ -1,6 +1,6 @@
 # Transcript Intake Worker
 
-See the full plan (`Meeting Capture Bot Plan.md`, repo root) for the whole
+See the full plan ([PLAN.md](PLAN.md), in this folder) for the whole
 flow, the archivist1-side changes, and secrets. This README covers what
 phase 1 actually builds: a Worker that checks a secret and a payload shape,
 then logs it. **It does not write to GitHub yet** — that's phase 2.
