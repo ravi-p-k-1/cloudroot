@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copies 4 Cloudflare Worker config values (ANTHROPIC_API_KEY, OPENAI_API_KEY,
+# Copies 4 config values (ANTHROPIC_API_KEY, OPENAI_API_KEY,
 # CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID) from a local env file into a
 # repo's GitHub Actions config, via the GitHub CLI.
 #
