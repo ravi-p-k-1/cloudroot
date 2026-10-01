@@ -1,16 +1,17 @@
 /**
- * Cloudflare Worker: transcript intake (phase 1 - skeleton)
- * -----------------------------------------------------------
+ * Cloudflare Worker: transcript intake
+ * --------------------------------------
  * Webhook endpoint for the TranscripTonic Chrome extension (advanced body
- * mode). This phase only checks the secret and the payload shape, then
- * logs it and returns 200 — it does not write to archivist1 yet. Phase 2
- * adds naming.js (date/HHMM) and github.js (the branch-creation calls)
- * and plugs them in below, where noted.
+ * mode). Checks the secret and payload shape, derives the date/HHMM from
+ * meetingStartTimestamp, then creates cloudflare/<date>-<hhmm> on
+ * archivist1 holding transcripts/<date>/meet/transcript.json.
  *
  * Route: POST /ingest/<WEBHOOK_SECRET>
  */
 
 import { validatePayload, summarizeShape, MAX_PAYLOAD_BYTES } from "./validate.js";
+import { getDateAndHHMM } from "./naming.js";
+import { createTranscriptBranch, DuplicateError, GithubAuthError } from "./github.js";
 
 // Constant-time string compare: pads both sides to equal length first so
 // that a length mismatch doesn't short-circuit and leak the secret's
@@ -55,10 +56,29 @@ export default {
       return new Response(result.reason, { status: 400 });
     }
 
-    console.log("received:", JSON.stringify(summarizeShape(body)));
+    const shape = summarizeShape(body);
+    const { date, hhmm } = getDateAndHHMM(body.meetingStartTimestamp);
 
-    // Phase 2 adds: naming.js for date/HHMM, github.js's duplicate check
-    // and tree -> commit -> ref calls, returning 409 on a duplicate.
-    return new Response("OK", { status: 200 });
+    try {
+      const branch = await createTranscriptBranch(env, {
+        date,
+        hhmm,
+        meetingJson: JSON.stringify(body, null, 2),
+      });
+      console.log("created:", JSON.stringify({ ...shape, date, branch }));
+      return new Response("OK", { status: 200 });
+    } catch (err) {
+      if (err instanceof DuplicateError) {
+        console.log("duplicate:", JSON.stringify({ ...shape, date }));
+        return new Response(err.message, { status: 409 });
+      }
+      if (err instanceof GithubAuthError) {
+        console.log("github-auth-error:", JSON.stringify({ ...shape, date }));
+        return new Response("GitHub token rejected", { status: 500 });
+      }
+      // GithubApiError, or anything else unexpected from the GitHub calls.
+      console.log("github-error:", JSON.stringify({ ...shape, date, error: err.message }));
+      return new Response("GitHub or network error", { status: 502 });
+    }
   },
 };
