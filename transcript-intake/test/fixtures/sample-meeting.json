@@ -1,6 +1,6 @@
 {
   "webhookBodyType": "advanced",
-  "meetingSoftware": "google_meet",
+  "meetingSoftware": "Google Meet",
   "meetingTitle": "Weekly sync",
   "meetingStartTimestamp": "2025-06-15T17:00:00.000Z",
   "meetingEndTimestamp": "2025-06-15T17:28:00.000Z",

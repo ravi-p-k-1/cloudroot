@@ -16,7 +16,7 @@ POST /ingest/<WEBHOOK_SECRET>
 2. Rejects a wrong secret with 401 (constant-time compare).
 3. Rejects a payload over 5 MB, non-JSON, or the wrong shape with 400 —
    `src/validate.js` checks `webhookBodyType === "advanced"`,
-   `meetingSoftware === "google_meet"`, a non-empty `transcript` array
+   `meetingSoftware === "Google Meet"`, a non-empty `transcript` array
    where every entry has `personName`/`timestamp`/`transcriptText`, and a
    parseable `meetingStartTimestamp`.
 4. Derives `date`/`HHMM` from `meetingStartTimestamp` in

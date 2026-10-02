@@ -1,9 +1,10 @@
 /**
  * Payload checks for the advanced-mode TranscripTonic webhook body, run
- * before any GitHub call (added in phase 2). Shape confirmed against the
- * extension's own source: exporters.js:postTranscriptToWebhook() builds
- * this object, and platforms.js's wantedPlatforms id for Meet is the
- * literal string "google_meet", not "Google Meet".
+ * before any GitHub call (added in phase 2). meetingSoftware is the
+ * human-readable "Google Meet" - confirmed against a real meeting's
+ * payload (the extension's doc examples in meetings.html show the same).
+ * "google_meet" (lowercase, underscored) is a different, internal id used
+ * elsewhere in the extension for permission tracking, not what's sent here.
  */
 
 export const MAX_PAYLOAD_BYTES = 5 * 1024 * 1024; // 5 MB, per the plan's Worker spec
@@ -21,10 +22,10 @@ export function validatePayload(body, rawByteLength) {
       reason: `webhookBodyType must be "advanced", got ${JSON.stringify(body.webhookBodyType)}`,
     };
   }
-  if (body.meetingSoftware !== "google_meet") {
+  if (body.meetingSoftware !== "Google Meet") {
     return {
       ok: false,
-      reason: `meetingSoftware must be "google_meet", got ${JSON.stringify(body.meetingSoftware)}`,
+      reason: `meetingSoftware must be "Google Meet", got ${JSON.stringify(body.meetingSoftware)}`,
     };
   }
   if (!Array.isArray(body.transcript) || body.transcript.length === 0) {
