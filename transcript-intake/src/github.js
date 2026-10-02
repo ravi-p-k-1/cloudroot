@@ -1,7 +1,11 @@
 /**
- * archivist1 branch creation via GitHub's Git Data API: read main's tree,
- * check for a duplicate, then tree -> commit -> ref. See PLAN.md's
- * "Worker spec" section for the exact call sequence and response mapping.
+ * archivist1 branch + PR creation via GitHub's API: read main's tree,
+ * check for a duplicate, tree -> commit -> ref, then open the PR. See
+ * PLAN.md's "Worker spec" for the exact call sequence and response
+ * mapping. The PR has to be opened with ARCHIVIST_TOKEN (a personal
+ * token), not the default GITHUB_TOKEN elsewhere in the org's workflows -
+ * claude-code-action only reacts to pull_request events, and a PR opened
+ * by GITHUB_TOKEN wouldn't start a workflow run at all.
  */
 
 const GITHUB_API = "https://api.github.com";
@@ -11,6 +15,12 @@ export class DuplicateError extends Error {}
 export class GithubAuthError extends Error {}
 // Any other non-2xx or network failure talking to GitHub -> 502.
 export class GithubApiError extends Error {}
+// The branch was created but opening the PR failed - distinct from
+// GithubApiError because the recovery is different: the branch already
+// exists, so retrying the webhook post would just hit the duplicate
+// check. The fix is to open the PR by hand. Always maps to 502,
+// regardless of the underlying cause (auth, API, or network).
+export class PullRequestError extends Error {}
 
 async function githubRequest(env, path, options = {}) {
   let response;
@@ -52,12 +62,18 @@ async function isDuplicate(env, date) {
   return false;
 }
 
+function prTitle(date, hhmm, meetingTitle) {
+  const time = `${hhmm.slice(0, 2)}:${hhmm.slice(2)}`;
+  return `Transcript: ${date} ${time} — ${meetingTitle || "Meeting"}`;
+}
+
 /**
  * Creates cloudflare/<date>-<hhmm> on archivist1, containing only
- * transcripts/<date>/meet/transcript.json on top of main. Throws
- * DuplicateError / GithubAuthError / GithubApiError on failure.
+ * transcripts/<date>/meet/transcript.json on top of main, then opens a PR
+ * into main. Throws DuplicateError / GithubAuthError / GithubApiError /
+ * PullRequestError on failure.
  */
-export async function createTranscriptBranch(env, { date, hhmm, meetingJson }) {
+export async function createTranscriptBranch(env, { date, hhmm, meetingJson, meetingTitle }) {
   const repo = env.ARCHIVIST_REPO;
 
   const mainRef = await githubRequest(env, `/repos/${repo}/git/ref/heads/main`);
@@ -105,6 +121,19 @@ export async function createTranscriptBranch(env, { date, hhmm, meetingJson }) {
     throw new DuplicateError(`${branch} already exists`);
   }
   if (!refRes.ok) throw new GithubApiError(`creating ref: ${refRes.status}`);
+
+  // The branch exists now - any failure from here on is a PullRequestError
+  // (502, "open it by hand"), not a GithubAuthError/GithubApiError (which
+  // would otherwise suggest a clean retry, but a retry would just 409).
+  try {
+    const prRes = await githubRequest(env, `/repos/${repo}/pulls`, {
+      method: "POST",
+      body: JSON.stringify({ head: branch, base: "main", title: prTitle(date, hhmm, meetingTitle) }),
+    });
+    if (!prRes.ok) throw new GithubApiError(`creating PR: ${prRes.status}`);
+  } catch (err) {
+    throw new PullRequestError(`branch ${branch} created, but opening the PR failed: ${err.message}`);
+  }
 
   return branch;
 }

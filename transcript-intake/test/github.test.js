@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTranscriptBranch, DuplicateError, GithubAuthError, GithubApiError } from "../src/github.js";
+import { createTranscriptBranch, DuplicateError, GithubAuthError, GithubApiError, PullRequestError } from "../src/github.js";
 
 function jsonResponse(status, body) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -15,8 +15,8 @@ function envWithFetch(fetchImpl) {
   return { ARCHIVIST_REPO: "ravi-p-k-1/archivist1", ARCHIVIST_TOKEN: "fake-token" };
 }
 
-test("creates the branch when nothing is a duplicate", async () => {
-  const env = envWithFetch(async (url, options) => {
+function withGitDataHandlers(extra) {
+  return async (url, options) => {
     const path = new URL(url).pathname;
     const method = options?.method || "GET";
     if (path.endsWith("/git/ref/heads/main")) return jsonResponse(200, { object: { sha: "main-sha" } });
@@ -27,11 +27,98 @@ test("creates the branch when nothing is a duplicate", async () => {
     if (path.endsWith("/git/trees") && method === "POST") return jsonResponse(201, { sha: "new-tree-sha" });
     if (path.endsWith("/git/commits") && method === "POST") return jsonResponse(201, { sha: "new-commit-sha" });
     if (path.endsWith("/git/refs") && method === "POST") return jsonResponse(201, { ref: "refs/heads/cloudflare/2026-10-01-1000" });
-    throw new Error(`unexpected request: ${method} ${path}`);
+    return extra(path, method, url, options);
+  };
+}
+
+test("creates the branch and opens the PR when nothing is a duplicate", async () => {
+  const pullRequests = [];
+  const env = envWithFetch(
+    withGitDataHandlers((path, method) => {
+      if (path.endsWith("/pulls") && method === "POST") {
+        pullRequests.push(path);
+        return jsonResponse(201, { number: 7 });
+      }
+      throw new Error(`unexpected request: ${method} ${path}`);
+    })
+  );
+
+  const branch = await createTranscriptBranch(env, {
+    date: "2026-10-01",
+    hhmm: "1000",
+    meetingJson: "{}",
+    meetingTitle: "Weekly sync",
+  });
+  assert.equal(branch, "cloudflare/2026-10-01-1000");
+  assert.equal(pullRequests.length, 1);
+});
+
+test("sends head, base and a readable title when opening the PR", async () => {
+  let prBody;
+  const env = envWithFetch(
+    withGitDataHandlers((path, method, url, options) => {
+      if (path.endsWith("/pulls") && method === "POST") {
+        prBody = JSON.parse(options.body);
+        return jsonResponse(201, { number: 7 });
+      }
+      throw new Error(`unexpected request: ${method} ${path}`);
+    })
+  );
+
+  await createTranscriptBranch(env, {
+    date: "2026-10-01",
+    hhmm: "1800",
+    meetingJson: "{}",
+    meetingTitle: "Weekly sync",
   });
 
-  const branch = await createTranscriptBranch(env, { date: "2026-10-01", hhmm: "1000", meetingJson: "{}" });
-  assert.equal(branch, "cloudflare/2026-10-01-1000");
+  assert.equal(prBody.head, "cloudflare/2026-10-01-1800"); // built from date/hhmm, not from the mocked /git/refs response
+  assert.equal(prBody.base, "main");
+  assert.equal(prBody.title, "Transcript: 2026-10-01 18:00 — Weekly sync");
+});
+
+test("falls back to a generic title when meetingTitle is missing", async () => {
+  let prBody;
+  const env = envWithFetch(
+    withGitDataHandlers((path, method, url, options) => {
+      if (path.endsWith("/pulls") && method === "POST") {
+        prBody = JSON.parse(options.body);
+        return jsonResponse(201, { number: 7 });
+      }
+      throw new Error(`unexpected request: ${method} ${path}`);
+    })
+  );
+
+  await createTranscriptBranch(env, { date: "2026-10-01", hhmm: "1800", meetingJson: "{}" });
+  assert.match(prBody.title, /— Meeting$/);
+});
+
+test("throws PullRequestError (not GithubAuthError) when the PR call is rejected after the branch exists", async () => {
+  const env = envWithFetch(
+    withGitDataHandlers((path, method) => {
+      if (path.endsWith("/pulls") && method === "POST") return textResponse(403);
+      throw new Error(`unexpected request: ${method} ${path}`);
+    })
+  );
+
+  await assert.rejects(
+    createTranscriptBranch(env, { date: "2026-10-01", hhmm: "1000", meetingJson: "{}" }),
+    PullRequestError
+  );
+});
+
+test("throws PullRequestError on a network failure opening the PR", async () => {
+  const env = envWithFetch(
+    withGitDataHandlers((path, method) => {
+      if (path.endsWith("/pulls") && method === "POST") throw new Error("boom");
+      throw new Error(`unexpected request: ${method} ${path}`);
+    })
+  );
+
+  await assert.rejects(
+    createTranscriptBranch(env, { date: "2026-10-01", hhmm: "1000", meetingJson: "{}" }),
+    PullRequestError
+  );
 });
 
 test("throws DuplicateError when transcripts/<date> already exists on main", async () => {

@@ -4,14 +4,15 @@
  * Webhook endpoint for the TranscripTonic Chrome extension (advanced body
  * mode). Checks the secret and payload shape, derives the date/HHMM from
  * meetingStartTimestamp, then creates cloudflare/<date>-<hhmm> on
- * archivist1 holding transcripts/<date>/meet/transcript.json.
+ * archivist1 holding transcripts/<date>/meet/transcript.json, and opens a
+ * PR into main (archivist1's claude-code-action workflow reacts to that).
  *
  * Route: POST /ingest/<WEBHOOK_SECRET>
  */
 
 import { validatePayload, summarizeShape, MAX_PAYLOAD_BYTES } from "./validate.js";
 import { getDateAndHHMM } from "./naming.js";
-import { createTranscriptBranch, DuplicateError, GithubAuthError } from "./github.js";
+import { createTranscriptBranch, DuplicateError, GithubAuthError, PullRequestError } from "./github.js";
 
 // Constant-time string compare: pads both sides to equal length first so
 // that a length mismatch doesn't short-circuit and leak the secret's
@@ -64,6 +65,7 @@ export default {
         date,
         hhmm,
         meetingJson: JSON.stringify(body, null, 2),
+        meetingTitle: body.meetingTitle,
       });
       console.log("created:", JSON.stringify({ ...shape, date, branch }));
       return new Response("OK", { status: 200 });
@@ -71,6 +73,10 @@ export default {
       if (err instanceof DuplicateError) {
         console.log("duplicate:", JSON.stringify({ ...shape, date }));
         return new Response(err.message, { status: 409 });
+      }
+      if (err instanceof PullRequestError) {
+        console.log("pr-error:", JSON.stringify({ ...shape, date, error: err.message }));
+        return new Response(err.message, { status: 502 });
       }
       if (err instanceof GithubAuthError) {
         console.log("github-auth-error:", JSON.stringify({ ...shape, date }));
