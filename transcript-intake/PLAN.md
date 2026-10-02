@@ -2,6 +2,31 @@
 
 Oct 1, 2026 · @Ravi Pareshbhai Kakadia
 
+> **Status as of Oct 2, 2026:** Phases 0–4 are done. The Worker here is
+> deployed and has processed one real meeting end-to-end: it validated the
+> payload, created `cloudflare/2026-10-01-1604`, and opened PR #5 into
+> `main` in archivist1. That PR was then picked up by archivist1's
+> `process-transcripts.yml` (phases 3–4, built and verified in a separate
+> session) and merged.
+>
+> Phase 5 is partly done: archivist1 removed the now-unused Claude Agent
+> SDK extractor, its test, and the `claude-agent-sdk` dependency. Its
+> repo-settings items (a ruleset on `main`, auto-delete head branches) and
+> the actual gate — turning the webhook on in the capture person's
+> extension and running one real meeting through the full pipeline — are
+> deferred until next week, when a real meeting is available to test with.
+>
+> Phase 6 is mostly done: archivist1's README was rewritten for the new
+> JSON/claude-code-action flow, and this folder's `README.md` and
+> `AGENTS.md` were rewritten for a public audience (setup guide, secrets
+> list, API/response runbook). What's left: a PR from this fork into
+> `ModelEarth/cloudroot` (just `transcript-intake/` + its deploy workflow),
+> and switching `ARCHIVIST_REPO` from `ravi-p-k-1/archivist1` to
+> `Earthscape/archivist1` once that repo's maintainer sets up an
+> `ARCHIVIST_TOKEN` scoped to it — deliberately left for them rather than
+> switched here, since the live Worker on this fork still needs its
+> current token/repo pairing to keep working in the meantime.
+
 ## Overview
 
 The TranscripTonic Chrome extension saves Google Meet's live captions with speaker names. When the meeting ends, it posts them as JSON to a Cloudflare Worker in cloudroot. The Worker creates a `cloudflare/<date>-<HHMM>` branch in archivist1 holding `transcripts/<date>/meet/transcript.json`, and opens a PR into `main`. The PR starts archivist1's workflow, which uses **claude-code-action** to extract action items and commits them to the same branch. A person reviews and merges.
